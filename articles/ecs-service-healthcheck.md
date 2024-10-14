@@ -2,7 +2,7 @@
 title: "ECS on Fargate でGoのアプリを起動させた時にコンテナのヘルスチェックで苦しんだ話"
 emoji: "🐳"
 type: "tech" # tech: 技術記事 / idea: アイデア
-topics: ["ecs", "aws", "go"]
+topics: ["ecs", "aws", "go", "docker"]
 published: true
 ---
 

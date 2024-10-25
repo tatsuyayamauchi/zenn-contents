@@ -191,6 +191,74 @@ https://github.com/spf13/cobra/blob/3a5efaede9d389703a792e2f7bfe3a64bc82ced9/doc
 そのため `cmd/root.go` にある `cobra.Command` を cmddev 配下のコマンドとして登録すると cmddev -> cmd の依存関係が発生して cmddev のビルドが通らないケースが発生します。
 私もこの罠にハマったので、このコマンドだけ仕方がなく cmddev から除外して `tools/cobradocsgen/main.go` のような完全別ファイルとして追加しています。
 
+:::message
+2024/10/25 追記
+
+ドキュメントの生成用関数と、cobra のコマンドを分離してあげることでこの問題は解決しました。
+(ただし cmd, cmddev の両方にドキュメント生成コマンドの実装が含まれてしまいますが)
+
+```go
+// tools/cobradocsgen/run.go
+
+func Run(cmd *cobra.Command, dir string) error　{
+	if err := doc.GenMarkdownTree(cmd, dir); err != nil {
+		return err
+	}
+	for _, c := range cmd.Commands() {
+		if err := run(dir, c); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+```
+
+cobra 側の関数ではルートのコマンドを受け取り呼び出すだけにしてあげました。
+
+```go
+// cmd/cobradocsgen/cmd.go
+
+func NewCmd(rootCmd *cobra.Command) *cobra.Command {
+	return &cobra.Command{
+		Use:    "cobradocsgen",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) != 1 {
+				return fmt.Errorf("引数がありません")
+			}
+			return cobradocsgen.Run(rootCmd, args[0])
+		},
+	}
+}
+```
+
+```go
+// cmd/root.go
+
+var rootCmd = &cobra.Command{
+	Use: "some-app",
+}
+
+func Execute() {
+	if err := rootCmd.Execute(); err != nil {
+		os.Exit(1)
+	}
+}
+
+func init() {
+	rootCmd.AddCommand(foo.Cmd())
+	rootCmd.AddCommand(cobradocsgen.NewCmd(rootCmd))
+}
+```
+
+このような指定をしてドキュメントを生成します。
+
+```bash
+go run main.go cobradocsgen docs/app
+go run cmddev/main.go cobradocsgen docs/dev
+```
+
+:::
+
 # おわりに
 
 Go が自動生成を推奨する文化なので、他の言語よりも独自でファイルを自動生成をするケースが多い気がしています。
